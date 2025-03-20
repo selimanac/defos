@@ -11,3 +11,5 @@ builtins
 .vscode/
 *.txt
 .clang-format
+.editor_settings
+build_config.json
