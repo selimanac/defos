@@ -108,32 +108,6 @@ void defos_toggle_borderless() {
   [window makeKeyAndOrderFront:nil];
 }
 
-/*void defos_create_fullscreen_borderless() {
-
-  if (!window)
-    return;
-
-  // Save the current display for proper positioning
-  NSScreen *screen = [NSScreen mainScreen];
-
-  // Set window to borderless style
-  [window setStyleMask:NSWindowStyleMaskBorderless];
-
-  // Make window fill the entire screen
-  NSRect screenRect = [screen frame];
-  [window setFrame:screenRect display:YES];
-
-  // Make sure window is visible and has focus
-  [window
-      setLevel:NSMainMenuWindowLevel + 1]; // This puts it above most elements
-  [window makeKeyAndOrderFront:nil];
-  [window setAcceptsMouseMovedEvents:YES];
-
-  [window makeKeyAndOrderFront:nil];
-  // Force the application to be active and focused
-  [NSApp activateIgnoringOtherApps:YES];
-}*/
-
 void defos_create_fullscreen_borderless() {
   if (!window)
     return;
@@ -165,6 +139,52 @@ void defos_create_fullscreen_borderless() {
   TransformProcessType(&psn, kProcessTransformToForegroundApplication);
   SetFrontProcess(&psn);
 }
+
+/*
+void defos_create_fullscreen_borderless() {
+  if (!window)
+    return;
+
+  // Get the screen
+  NSScreen *screen = [NSScreen mainScreen];
+
+  // 1️⃣ Use `visibleFrame` to ignore menu bar & Dock issues
+  NSRect screenRect =
+      [screen frame]; // Gets full screen (includes menu bar area)
+  NSRect visibleRect = [screen visibleFrame]; // Gets actual usable area
+
+  // 2️⃣ Fix Y-position: Move it to the actual top-left corner
+  screenRect.origin.y = visibleRect.origin.y; // Align to proper top
+
+  // 3️⃣ Resize first before going borderless
+  [window setFrame:screenRect display:YES];
+
+  // 4️⃣ Apply borderless style AFTER resizing
+  [window setStyleMask:NSWindowStyleMaskBorderless];
+
+  // 5️⃣ Ensure it stays above everything
+  [window setLevel:NSMainMenuWindowLevel + 1];
+
+  // 6️⃣ Prevent Spaces switching (avoids flickering)
+  [window setCollectionBehavior:NSWindowCollectionBehaviorCanJoinAllSpaces |
+                                NSWindowCollectionBehaviorFullScreenPrimary];
+
+  // 7️⃣ Force the app to foreground
+  [[NSApplication sharedApplication] activateIgnoringOtherApps:YES];
+
+  // 8️⃣ Fix input loss by resetting window focus
+  [window orderOut:nil];
+  dispatch_after(
+      dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
+      dispatch_get_main_queue(), ^{
+        [window makeKeyAndOrderFront:nil];
+      });
+
+  // 9️⃣ Ensure the app is a foreground process
+  ProcessSerialNumber psn = {0, kCurrentProcess};
+  TransformProcessType(&psn, kProcessTransformToForegroundApplication);
+  SetFrontProcess(&psn);
+}*/
 
 void defos_toggle_maximized() {
   if (defos_is_fullscreen()) {

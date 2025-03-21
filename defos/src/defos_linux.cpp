@@ -33,16 +33,16 @@
 #include <sys/auxv.h>
 #include <limits.h>
 
-//static GC gc;
+// static GC gc;
 #define _NET_WM_STATE_REMOVE 0
 #define _NET_WM_STATE_ADD 1
 #define _NET_WM_STATE_TOGGLE 2
 #define XATOM(name) XInternAtom(disp, name, False)
 
-static Display *disp;
-static int screen;
-static Window win;
-static Window root;
+static Display* disp;
+static int      screen;
+static Window   win;
+static Window   root;
 
 // TODO: add support checking
 static Atom UTF8_STRING;
@@ -59,25 +59,26 @@ static Atom NET_WM_ACTION_MINIMIZE;
 static Atom NET_FRAME_EXTENTS;
 static Atom NET_ACTIVE_WINDOW;
 
-struct CustomCursor {
+struct CustomCursor
+{
     Cursor cursor;
-    int ref_count;
+    int    ref_count;
 };
 
-static CustomCursor * current_cursor;
-static CustomCursor * default_cursors[DEFOS_CURSOR_INTMAX];
+static CustomCursor* current_cursor;
+static CustomCursor* default_cursors[DEFOS_CURSOR_INTMAX];
 
-static bool is_cursor_visible = true;
-static bool is_cursor_actually_visible = true;
-static bool window_has_focus = true;
-static bool resize_locked = false;
+static bool          is_cursor_visible = true;
+static bool          is_cursor_actually_visible = true;
+static bool          window_has_focus = true;
+static bool          resize_locked = false;
 
-static bool is_window_visible(Window window);
-static void send_message(Window &window, Atom type, long a, long b, long c, long d, long e);
+static bool          is_window_visible(Window window);
+static void          send_message(Window& window, Atom type, long a, long b, long c, long d, long e);
 
-static bool is_cursor_in_view = true;
+static bool          is_cursor_in_view = true;
 
-void defos_init()
+void                 defos_init()
 {
     disp = XOpenDisplay(NULL);
     screen = DefaultScreen(disp);
@@ -111,7 +112,8 @@ void defos_init()
 void defos_final()
 {
     defos_gc_custom_cursor(current_cursor);
-    for (int i = 0; i < DEFOS_CURSOR_INTMAX; i++) {
+    for (int i = 0; i < DEFOS_CURSOR_INTMAX; i++)
+    {
         defos_gc_custom_cursor(default_cursors[i]);
     }
 }
@@ -120,18 +122,15 @@ void defos_event_handler_was_set(DefosEvent event)
 {
 }
 
-static Atom* get_atom_list(Atom property, unsigned long &nItems)
+static Atom* get_atom_list(Atom property, unsigned long& nItems)
 {
-    Atom actualType;
-    int actualFormat;
+    Atom          actualType;
+    int           actualFormat;
     unsigned long bytesAfter;
-    Atom* data = NULL;
-    XEvent event;
-    while (XGetWindowProperty(disp, win, property,
-        0, (~0L), False, AnyPropertyType,
-        &actualType, &actualFormat,
-        &nItems, &bytesAfter, (unsigned char**)&data) == Success && bytesAfter != 0
-    ) {
+    Atom*         data = NULL;
+    XEvent        event;
+    while (XGetWindowProperty(disp, win, property, 0, (~0L), False, AnyPropertyType, &actualType, &actualFormat, &nItems, &bytesAfter, (unsigned char**)&data) == Success && bytesAfter != 0)
+    {
         XNextEvent(disp, &event);
     }
 
@@ -141,11 +140,14 @@ static Atom* get_atom_list(Atom property, unsigned long &nItems)
 static bool hint_state_contains_atom(Atom atom)
 {
     unsigned long nItems;
-    Atom* data = get_atom_list(NET_WM_STATE, nItems);
+    Atom*         data = get_atom_list(NET_WM_STATE, nItems);
 
-    if (data) {
-        for (unsigned int i = 0; i < nItems; i++) {
-            if (data[i] == atom) {
+    if (data)
+    {
+        for (unsigned int i = 0; i < nItems; i++)
+        {
+            if (data[i] == atom)
+            {
                 XFree(data);
                 return true;
             }
@@ -161,7 +163,8 @@ bool defos_is_fullscreen()
     return hint_state_contains_atom(NET_WM_STATE_FULLSCREEN);
 }
 
-bool defos_is_borderless() {
+bool defos_is_borderless()
+{
     // TODO: add defos_is_borderless for Linux
     return true;
 }
@@ -178,32 +181,48 @@ bool defos_is_always_on_top()
 
 bool defos_is_mouse_in_view()
 {
-    Window d1, d2;
-    int x, y, d3, d4;
+    Window       d1, d2;
+    int          x, y, d3, d4;
     unsigned int d5;
-    if (!XQueryPointer(disp, win, &d1, &d2, &d3, &d4, &x, &y, &d5)) { return false; }
+    if (!XQueryPointer(disp, win, &d1, &d2, &d3, &d4, &x, &y, &d5))
+    {
+        return false;
+    }
 
-    if (x < 0 || y < 0) { return false; }
+    if (x < 0 || y < 0)
+    {
+        return false;
+    }
 
     unsigned int w, h, d6;
     XGetGeometry(disp, win, &d1, &d3, &d4, &w, &h, &d5, &d6);
 
-    if ((unsigned)x >= w || (unsigned)y >= h) { return false; }
+    if ((unsigned)x >= w || (unsigned)y >= h)
+    {
+        return false;
+    }
     return true;
 }
 
 void defos_disable_maximize_button()
 {
     unsigned long nItems;
-    Atom* data = get_atom_list(NET_WM_ALLOWED_ACTIONS, nItems);
+    Atom*         data = get_atom_list(NET_WM_ALLOWED_ACTIONS, nItems);
 
-    if (!data) { return; }
+    if (!data)
+    {
+        return;
+    }
 
     // Filter the allowed actions list
-    Atom* newList = (Atom*)malloc(sizeof(Atom) * nItems);
+    Atom*         newList = (Atom*)malloc(sizeof(Atom) * nItems);
     unsigned long newNItems = 0;
-    for (unsigned long i = 0; i < nItems; i++) {
-        if (data[i] == NET_WM_ACTION_MAXIMIZE_HORZ || data[i] == NET_WM_ACTION_MAXIMIZE_VERT) { continue; }
+    for (unsigned long i = 0; i < nItems; i++)
+    {
+        if (data[i] == NET_WM_ACTION_MAXIMIZE_HORZ || data[i] == NET_WM_ACTION_MAXIMIZE_VERT)
+        {
+            continue;
+        }
         newList[newNItems++] = data[i];
     }
     XFree(data);
@@ -216,15 +235,22 @@ void defos_disable_maximize_button()
 void defos_disable_minimize_button()
 {
     unsigned long nItems;
-    Atom* data = get_atom_list(NET_WM_ALLOWED_ACTIONS, nItems);
+    Atom*         data = get_atom_list(NET_WM_ALLOWED_ACTIONS, nItems);
 
-    if (!data) { return; }
+    if (!data)
+    {
+        return;
+    }
 
     // Filter the allowed actions list
-    Atom* newList = (Atom*)malloc(sizeof(Atom) * nItems);
+    Atom*         newList = (Atom*)malloc(sizeof(Atom) * nItems);
     unsigned long newNItems = 0;
-    for (unsigned long i = 0; i < nItems; i++) {
-        if (data[i] == NET_WM_ACTION_MINIMIZE) { return; }
+    for (unsigned long i = 0; i < nItems; i++)
+    {
+        if (data[i] == NET_WM_ACTION_MINIMIZE)
+        {
+            return;
+        }
         newList[newNItems++] = data[i];
     }
     XFree(data);
@@ -234,9 +260,11 @@ void defos_disable_minimize_button()
     free(newList);
 }
 
+void        defos_create_fullscreen_borderless() {}
+
 static void lock_resize(int width, int height)
 {
-    XSizeHints *sizeHints = XAllocSizeHints();
+    XSizeHints* sizeHints = XAllocSizeHints();
     sizeHints->flags = PMinSize | PMaxSize;
     sizeHints->min_width = width;
     sizeHints->min_height = height;
@@ -252,36 +280,47 @@ static void lock_resize(int width, int height)
 
 void defos_disable_window_resize()
 {
-    int x, y;
+    int          x, y;
     unsigned int w, h, bw, depth;
 
-    Window dummy;
+    Window       dummy;
     XGetGeometry(disp, win, &dummy, &x, &y, &w, &h, &bw, &depth);
 
     lock_resize(w, h);
 }
 
-static void apply_cursor() {
+static void apply_cursor()
+{
     Cursor cursor = current_cursor ? current_cursor->cursor : None;
     XDefineCursor(disp, win, cursor);
 }
 
-static void apply_cursor_visible() {
+static void apply_cursor_visible()
+{
     bool visible = is_cursor_visible || !window_has_focus;
-    if (visible == is_cursor_actually_visible) { return; }
+    if (visible == is_cursor_actually_visible)
+    {
+        return;
+    }
     is_cursor_actually_visible = visible;
 
-    if (visible) {
-		    XFixesShowCursor(disp, win);
-    } else {
-		    XFixesHideCursor(disp, win);
+    if (visible)
+    {
+        XFixesShowCursor(disp, win);
+    }
+    else
+    {
+        XFixesHideCursor(disp, win);
     }
     XFlush(disp);
 }
 
 void defos_set_cursor_visible(bool visible)
 {
-    if (visible == is_cursor_visible) { return; }
+    if (visible == is_cursor_visible)
+    {
+        return;
+    }
     is_cursor_visible = visible;
     apply_cursor_visible();
 }
@@ -294,43 +333,41 @@ bool defos_is_cursor_visible()
 void defos_toggle_fullscreen()
 {
     send_message(win,
-        NET_WM_STATE,
-        _NET_WM_STATE_TOGGLE,
-        NET_WM_STATE_FULLSCREEN,
-        0,
-        1,
-        0
-    );
+                 NET_WM_STATE,
+                 _NET_WM_STATE_TOGGLE,
+                 NET_WM_STATE_FULLSCREEN,
+                 0,
+                 1,
+                 0);
     XFlush(disp);
 }
 
-void defos_toggle_borderless() {
+void defos_toggle_borderless()
+{
     // TODO: add defos_toggle_borderless for Linux
 }
 
 void defos_toggle_maximized()
 {
     send_message(win,
-        NET_WM_STATE,
-        _NET_WM_STATE_TOGGLE,
-        NET_WM_STATE_MAXIMIZED_VERT,
-        NET_WM_STATE_MAXIMIZED_HORZ,
-        1,
-        0
-    );
+                 NET_WM_STATE,
+                 _NET_WM_STATE_TOGGLE,
+                 NET_WM_STATE_MAXIMIZED_VERT,
+                 NET_WM_STATE_MAXIMIZED_HORZ,
+                 1,
+                 0);
     XFlush(disp);
 }
 
 void defos_toggle_always_on_top()
 {
     send_message(win,
-        NET_WM_STATE,
-        defos_is_always_on_top() ? _NET_WM_STATE_REMOVE : _NET_WM_STATE_ADD,
-        NET_WM_STATE_ABOVE,
-        0,
-        1,
-        0
-    );
+                 NET_WM_STATE,
+                 defos_is_always_on_top() ? _NET_WM_STATE_REMOVE : _NET_WM_STATE_ADD,
+                 NET_WM_STATE_ABOVE,
+                 0,
+                 1,
+                 0);
     XFlush(disp);
 }
 
@@ -342,13 +379,12 @@ void defos_minimize()
 void defos_activate()
 {
     send_message(win,
-        NET_ACTIVE_WINDOW,
-        1,
-        1,
-        0,
-        0,
-        0
-    );
+                 NET_ACTIVE_WINDOW,
+                 1,
+                 1,
+                 0,
+                 0,
+                 0);
     XFlush(disp);
 }
 
@@ -362,39 +398,44 @@ bool defos_is_console_visible()
     return false;
 }
 
-typedef struct {
+typedef struct
+{
     long left, right, top, bottom;
 } WindowExtents;
 
 static WindowExtents get_window_extents()
 {
-    Atom actualType;
-    int actualFormat;
+    Atom          actualType;
+    int           actualFormat;
     unsigned long nitems, bytesAfter;
-    long* extents = NULL;
-    XEvent event;
-    while (XGetWindowProperty(disp, win, NET_FRAME_EXTENTS,
-        0, 4, False, AnyPropertyType,
-        &actualType, &actualFormat,
-        &nitems, &bytesAfter, (unsigned char**)&extents) == Success && bytesAfter != 0
-    ) {
+    long*         extents = NULL;
+    XEvent        event;
+    while (XGetWindowProperty(disp, win, NET_FRAME_EXTENTS, 0, 4, False, AnyPropertyType, &actualType, &actualFormat, &nitems, &bytesAfter, (unsigned char**)&extents) == Success && bytesAfter != 0)
+    {
         XNextEvent(disp, &event);
     }
 
-    if (!extents || nitems != 4) {
+    if (!extents || nitems != 4)
+    {
         WindowExtents result = { 0, 0, 0, 0 };
-        if (extents) { XFree(extents); }
+        if (extents)
+        {
+            XFree(extents);
+        }
         return result;
     }
 
     WindowExtents result = { extents[0], extents[1], extents[2], extents[3] };
-    if (extents) { XFree(extents); }
+    if (extents)
+    {
+        XFree(extents);
+    }
     return result;
 }
 
-static RRCrtc get_current_crtc(WinRect &bounds);
+static RRCrtc get_current_crtc(WinRect& bounds);
 
-void defos_set_window_size(float x, float y, float w, float h)
+void          defos_set_window_size(float x, float y, float w, float h)
 {
     // change size only if it is visible
     if (is_window_visible(win))
@@ -403,8 +444,14 @@ void defos_set_window_size(float x, float y, float w, float h)
         {
             WinRect screenBounds;
             get_current_crtc(screenBounds);
-            if (isnan(x)) { x = screenBounds.x + ((float)screenBounds.w - w) / 2; }
-            if (isnan(y)) { y = screenBounds.y + ((float)screenBounds.h - h) / 2; }
+            if (isnan(x))
+            {
+                x = screenBounds.x + ((float)screenBounds.w - w) / 2;
+            }
+            if (isnan(y))
+            {
+                y = screenBounds.y + ((float)screenBounds.h - h) / 2;
+            }
         }
 
         WindowExtents extents = get_window_extents();
@@ -413,7 +460,10 @@ void defos_set_window_size(float x, float y, float w, float h)
         x += extents.left;
         y += extents.top;
 
-        if (resize_locked) { lock_resize(w, h); }
+        if (resize_locked)
+        {
+            lock_resize(w, h);
+        }
         XMoveResizeWindow(disp, win, (int)x, (int)y, (unsigned int)w, (unsigned int)h);
         XFlush(disp);
     }
@@ -428,26 +478,35 @@ void defos_set_view_size(float x, float y, float w, float h)
         {
             WinRect screenBounds;
             get_current_crtc(screenBounds);
-            if (isnan(x)) { x = screenBounds.x + ((float)screenBounds.w - w) / 2; }
-            if (isnan(y)) { y = screenBounds.y + ((float)screenBounds.h - h) / 2; }
+            if (isnan(x))
+            {
+                x = screenBounds.x + ((float)screenBounds.w - w) / 2;
+            }
+            if (isnan(y))
+            {
+                y = screenBounds.y + ((float)screenBounds.h - h) / 2;
+            }
         }
 
-        if (resize_locked) { lock_resize(w, h); }
+        if (resize_locked)
+        {
+            lock_resize(w, h);
+        }
         XMoveResizeWindow(disp, win, (int)x, (int)y, (unsigned int)w, (unsigned int)h);
         XFlush(disp);
     }
 }
 
-void defos_set_window_title(const char *title_lua)
+void defos_set_window_title(const char* title_lua)
 {
-    XChangeProperty(disp, win, NET_WM_NAME, UTF8_STRING, 8, PropModeReplace, (unsigned char *)title_lua, strlen(title_lua));
+    XChangeProperty(disp, win, NET_WM_NAME, UTF8_STRING, 8, PropModeReplace, (unsigned char*)title_lua, strlen(title_lua));
     XFlush(disp); // IMPORTANT: we have to flush, or nothing will be changed
 }
 
 WinRect defos_get_window_size()
 {
     WindowExtents extents = get_window_extents();
-    WinRect size = defos_get_view_size();
+    WinRect       size = defos_get_view_size();
 
     size.w += extents.left + extents.right;
     size.h += extents.top + extents.bottom;
@@ -459,24 +518,25 @@ WinRect defos_get_window_size()
 
 WinRect defos_get_view_size()
 {
-    int x, y;
+    int          x, y;
     unsigned int w, h, bw, depth;
 
-    Window dummy;
+    Window       dummy;
     XGetGeometry(disp, win, &dummy, &x, &y, &w, &h, &bw, &depth);
     XTranslateCoordinates(disp, win, root, 0, 0, &x, &y, &dummy);
 
-    WinRect r = {(float)x, (float)y, (float)w, (float)h};
+    WinRect r = { (float)x, (float)y, (float)w, (float)h };
     return r;
 }
 
 WinPoint defos_get_cursor_pos()
 {
-    WinPoint point = { .x = -INFINITY, .y = -INFINITY };
-    Window d1, d2;
-    int x, y, d3, d4;
+    WinPoint     point = { .x = -INFINITY, .y = -INFINITY };
+    Window       d1, d2;
+    int          x, y, d3, d4;
     unsigned int d5;
-    if (XQueryPointer(disp, root, &d1, &d2, &d3, &d4, &x, &y, &d5)) {
+    if (XQueryPointer(disp, root, &d1, &d2, &d3, &d4, &x, &y, &d5))
+    {
         point.x = x;
         point.y = y;
     }
@@ -485,11 +545,12 @@ WinPoint defos_get_cursor_pos()
 
 WinPoint defos_get_cursor_pos_view()
 {
-    WinPoint point = { .x = -INFINITY, .y = -INFINITY };
-    Window d1, d2;
-    int x, y, d3, d4;
+    WinPoint     point = { .x = -INFINITY, .y = -INFINITY };
+    Window       d1, d2;
+    int          x, y, d3, d4;
     unsigned int d5;
-    if (XQueryPointer(disp, win, &d1, &d2, &d3, &d4, &x, &y, &d5)) {
+    if (XQueryPointer(disp, win, &d1, &d2, &d3, &d4, &x, &y, &d5))
+    {
         point.x = x;
         point.y = y;
     }
@@ -530,11 +591,12 @@ bool defos_is_cursor_locked()
 
 void defos_update()
 {
-	// Show/hide cursor when window is focused/unfocused
+    // Show/hide cursor when window is focused/unfocused
     Window focused_window;
-    int revert_to;
-    if (!XGetInputFocus(disp, &focused_window, &revert_to)) {
-      focused_window = None;
+    int    revert_to;
+    if (!XGetInputFocus(disp, &focused_window, &revert_to))
+    {
+        focused_window = None;
     }
 
     window_has_focus = focused_window == win;
@@ -549,37 +611,44 @@ void defos_update()
     }
 }
 
-void * defos_load_cursor_linux(const char *filename)
+void* defos_load_cursor_linux(const char* filename)
 {
-    CustomCursor * cursor = new CustomCursor();
-    int cursorSize = XcursorGetDefaultSize(disp);
-    XcursorImage * image = XcursorFilenameLoadImage(filename, cursorSize);
-    if (image) {
-      cursor->cursor = XcursorImageLoadCursor(disp, image);
-      XcursorImageDestroy(image);
-    } else {
-      cursor->cursor = XCreateFontCursor(disp, XC_left_ptr);
+    CustomCursor* cursor = new CustomCursor();
+    int           cursorSize = XcursorGetDefaultSize(disp);
+    XcursorImage* image = XcursorFilenameLoadImage(filename, cursorSize);
+    if (image)
+    {
+        cursor->cursor = XcursorImageLoadCursor(disp, image);
+        XcursorImageDestroy(image);
+    }
+    else
+    {
+        cursor->cursor = XCreateFontCursor(disp, XC_left_ptr);
     }
     cursor->ref_count = 1;
     return cursor;
 }
 
-void defos_gc_custom_cursor(void * _cursor)
+void defos_gc_custom_cursor(void* _cursor)
 {
-    CustomCursor * cursor = (CustomCursor*)_cursor;
-    if (!cursor) { return; }
+    CustomCursor* cursor = (CustomCursor*)_cursor;
+    if (!cursor)
+    {
+        return;
+    }
     cursor->ref_count -= 1;
-    if (!cursor->ref_count) {
+    if (!cursor->ref_count)
+    {
         XFreeCursor(disp, cursor->cursor);
         delete cursor;
     }
 }
 
-void defos_set_custom_cursor(void * _cursor)
+void defos_set_custom_cursor(void* _cursor)
 {
-    CustomCursor * old_cursor = current_cursor;
+    CustomCursor* old_cursor = current_cursor;
 
-    CustomCursor * cursor = (CustomCursor*)_cursor;
+    CustomCursor* cursor = (CustomCursor*)_cursor;
     cursor->ref_count += 1;
     current_cursor = cursor;
 
@@ -590,10 +659,11 @@ void defos_set_custom_cursor(void * _cursor)
 
 static unsigned int get_cursor(DefosCursor cursor);
 
-void defos_set_cursor(DefosCursor cursor_type)
+void                defos_set_cursor(DefosCursor cursor_type)
 {
-    CustomCursor * cursor = default_cursors[cursor_type];
-    if (!cursor) {
+    CustomCursor* cursor = default_cursors[cursor_type];
+    if (!cursor)
+    {
         cursor = new CustomCursor();
         cursor->cursor = XCreateFontCursor(disp, get_cursor(cursor_type));
         cursor->ref_count = 1;
@@ -613,16 +683,16 @@ static unsigned int get_cursor(DefosCursor cursor)
 {
     switch (cursor)
     {
-    case DEFOS_CURSOR_ARROW:
-        return XC_left_ptr;
-    case DEFOS_CURSOR_CROSSHAIR:
-        return XC_tcross;
-    case DEFOS_CURSOR_HAND:
-        return XC_hand2;
-    case DEFOS_CURSOR_IBEAM:
-        return XC_xterm;
-    default:
-        return XC_left_ptr;
+        case DEFOS_CURSOR_ARROW:
+            return XC_left_ptr;
+        case DEFOS_CURSOR_CROSSHAIR:
+            return XC_tcross;
+        case DEFOS_CURSOR_HAND:
+            return XC_hand2;
+        case DEFOS_CURSOR_IBEAM:
+            return XC_xterm;
+        default:
+            return XC_left_ptr;
     }
 }
 
@@ -633,7 +703,8 @@ static bool is_window_visible(Window window)
     return attributes.map_state == IsViewable;
 }
 
-static const XRRModeInfo* get_mode_info(const XRRScreenResources* screenResources, RRMode id){
+static const XRRModeInfo* get_mode_info(const XRRScreenResources* screenResources, RRMode id)
+{
     for (int i = 0; i < screenResources->nmode; i++)
     {
         if (screenResources->modes[i].id == id)
@@ -660,20 +731,34 @@ static bool axis_flipped(Rotation rotation)
 
 static unsigned long orientation_from_rotation(Rotation rotation)
 {
-    if (rotation & RR_Rotate_0) { return 0; }
-    if (rotation & RR_Rotate_90) { return 90; }
-    if (rotation & RR_Rotate_180) { return 180; }
-    if (rotation & RR_Rotate_270) { return 270; }
+    if (rotation & RR_Rotate_0)
+    {
+        return 0;
+    }
+    if (rotation & RR_Rotate_90)
+    {
+        return 90;
+    }
+    if (rotation & RR_Rotate_180)
+    {
+        return 180;
+    }
+    if (rotation & RR_Rotate_270)
+    {
+        return 270;
+    }
     return 0;
 }
 
-static void parse_display_mode(const XRRModeInfo* modeInfo, DisplayModeInfo &mode, Rotation rotation)
+static void parse_display_mode(const XRRModeInfo* modeInfo, DisplayModeInfo& mode, Rotation rotation)
 {
     if (axis_flipped(rotation))
     {
         mode.width = modeInfo->height;
         mode.height = modeInfo->width;
-    } else {
+    }
+    else
+    {
         mode.width = modeInfo->width;
         mode.height = modeInfo->height;
     }
@@ -685,19 +770,19 @@ static void parse_display_mode(const XRRModeInfo* modeInfo, DisplayModeInfo &mod
     mode.reflect_y = !!(rotation & RR_Reflect_Y);
 }
 
-void defos_get_displays(dmArray<DisplayInfo> &displayList)
+void defos_get_displays(dmArray<DisplayInfo>& displayList)
 {
-    XRRScreenResources *screenResources = XRRGetScreenResourcesCurrent(disp, win);
-    unsigned long bpp = (long)DefaultDepth(disp, screen);
+    XRRScreenResources* screenResources = XRRGetScreenResourcesCurrent(disp, win);
+    unsigned long       bpp = (long)DefaultDepth(disp, screen);
 
     displayList.OffsetCapacity(screenResources->ncrtc);
     for (int i = 0; i < screenResources->ncrtc; i++)
     {
-        RRCrtc crtc = screenResources->crtcs[i];
-        DisplayInfo display;
+        RRCrtc             crtc = screenResources->crtcs[i];
+        DisplayInfo        display;
 
-        XRRCrtcInfo *crtcInfo = XRRGetCrtcInfo(disp, screenResources, crtc);
-        const XRRModeInfo * modeInfo = get_mode_info(screenResources, crtcInfo->mode);
+        XRRCrtcInfo*       crtcInfo = XRRGetCrtcInfo(disp, screenResources, crtc);
+        const XRRModeInfo* modeInfo = get_mode_info(screenResources, crtcInfo->mode);
 
         if (!modeInfo)
         {
@@ -708,11 +793,8 @@ void defos_get_displays(dmArray<DisplayInfo> &displayList)
         bool isMirror = false;
         for (unsigned int j = 0; j < displayList.Size(); j++)
         {
-            DisplayInfo &otherDisplay = displayList[j];
-            if (otherDisplay.bounds.x == crtcInfo->x
-                && otherDisplay.bounds.y == crtcInfo->y
-                && otherDisplay.bounds.w == crtcInfo->width
-                && otherDisplay.bounds.h == crtcInfo->height)
+            DisplayInfo& otherDisplay = displayList[j];
+            if (otherDisplay.bounds.x == crtcInfo->x && otherDisplay.bounds.y == crtcInfo->y && otherDisplay.bounds.w == crtcInfo->width && otherDisplay.bounds.h == crtcInfo->height)
             {
                 isMirror = true;
                 break;
@@ -737,7 +819,7 @@ void defos_get_displays(dmArray<DisplayInfo> &displayList)
 
         if (crtcInfo->noutput > 0)
         {
-            XRROutputInfo *outputInfo = XRRGetOutputInfo(disp, screenResources, crtcInfo->outputs[0]);
+            XRROutputInfo* outputInfo = XRRGetOutputInfo(disp, screenResources, crtcInfo->outputs[0]);
             if (outputInfo->name)
             {
                 display.name = (char*)malloc(outputInfo->nameLen + 1);
@@ -754,12 +836,12 @@ void defos_get_displays(dmArray<DisplayInfo> &displayList)
     XRRFreeScreenResources(screenResources);
 }
 
-void defos_get_display_modes(DisplayID displayID, dmArray<DisplayModeInfo> &modeList)
+void defos_get_display_modes(DisplayID displayID, dmArray<DisplayModeInfo>& modeList)
 {
-    RRCrtc crtc = (RRCrtc)displayID;
+    RRCrtc              crtc = (RRCrtc)displayID;
 
-    XRRScreenResources *screenResources = XRRGetScreenResourcesCurrent(disp, win);
-    XRRCrtcInfo *crtcInfo = XRRGetCrtcInfo(disp, screenResources, crtc);
+    XRRScreenResources* screenResources = XRRGetScreenResourcesCurrent(disp, win);
+    XRRCrtcInfo*        crtcInfo = XRRGetCrtcInfo(disp, screenResources, crtc);
 
     if (crtcInfo->noutput <= 0)
     {
@@ -768,22 +850,20 @@ void defos_get_display_modes(DisplayID displayID, dmArray<DisplayModeInfo> &mode
         return;
     }
 
-    RROutput output = crtcInfo->outputs[0];
-    XRROutputInfo *outputInfo = XRRGetOutputInfo(disp, screenResources, output);
+    RROutput           output = crtcInfo->outputs[0];
+    XRROutputInfo*     outputInfo = XRRGetOutputInfo(disp, screenResources, output);
 
-    unsigned long bpp = (long)DefaultDepth(disp, screen);
+    unsigned long      bpp = (long)DefaultDepth(disp, screen);
 
-    const XRRModeInfo *currentModeInfo = get_mode_info(screenResources, crtcInfo->mode);
-    double scaling_factor = (double)currentModeInfo->width / (double)(
-        axis_flipped(crtcInfo->rotation) ? crtcInfo->height : crtcInfo->width
-    );
+    const XRRModeInfo* currentModeInfo = get_mode_info(screenResources, crtcInfo->mode);
+    double             scaling_factor = (double)currentModeInfo->width / (double)(axis_flipped(crtcInfo->rotation) ? crtcInfo->height : crtcInfo->width);
 
     modeList.OffsetCapacity(outputInfo->nmode);
     for (int i = 0; i < outputInfo->nmode; i++)
     {
-        const XRRModeInfo *modeInfo = get_mode_info(screenResources, outputInfo->modes[i]);
+        const XRRModeInfo* modeInfo = get_mode_info(screenResources, outputInfo->modes[i]);
 
-        DisplayModeInfo mode;
+        DisplayModeInfo    mode;
         parse_display_mode(modeInfo, mode, crtcInfo->rotation);
         mode.bits_per_pixel = bpp;
         mode.scaling_factor = scaling_factor;
@@ -795,22 +875,25 @@ void defos_get_display_modes(DisplayID displayID, dmArray<DisplayModeInfo> &mode
     XRRFreeScreenResources(screenResources);
 }
 
-static RRCrtc get_current_crtc(WinRect &bounds)
+static RRCrtc get_current_crtc(WinRect& bounds)
 {
-    WinRect viewBounds = defos_get_view_size();
-    WinRect bestBounds = { 0, 0, 0, 0 };
-    RRCrtc bestCrtc = 0;
-    float bestArea = -1.0f;
+    WinRect             viewBounds = defos_get_view_size();
+    WinRect             bestBounds = { 0, 0, 0, 0 };
+    RRCrtc              bestCrtc = 0;
+    float               bestArea = -1.0f;
 
-    XRRScreenResources *screenResources = XRRGetScreenResourcesCurrent(disp, win);
+    XRRScreenResources* screenResources = XRRGetScreenResourcesCurrent(disp, win);
     for (int i = 0; i < screenResources->ncrtc; i++)
     {
-        RRCrtc crtc = screenResources->crtcs[i];
-        XRRCrtcInfo *crtcInfo = XRRGetCrtcInfo(disp, screenResources, crtc);
-        WinRect crtcBounds = { (float)crtcInfo->x, (float)crtcInfo->y, (float)crtcInfo->width, (float)crtcInfo->height };
+        RRCrtc       crtc = screenResources->crtcs[i];
+        XRRCrtcInfo* crtcInfo = XRRGetCrtcInfo(disp, screenResources, crtc);
+        WinRect      crtcBounds = { (float)crtcInfo->x, (float)crtcInfo->y, (float)crtcInfo->width, (float)crtcInfo->height };
         XRRFreeCrtcInfo(crtcInfo);
 
-        if (!crtcBounds.w || !crtcBounds.h) { continue; }
+        if (!crtcBounds.w || !crtcBounds.h)
+        {
+            continue;
+        }
 
         WinRect clip = viewBounds;
         if (crtcBounds.x > clip.x)
@@ -852,33 +935,41 @@ DisplayID defos_get_current_display()
     return (DisplayID)get_current_crtc(bounds);
 }
 
-void defos_set_window_icon(const char *icon_path)
+void defos_set_window_icon(const char* icon_path)
 {
     dmLogWarning("Method 'set_window_icon' is not supported on Linux");
 }
 
-static char* copy_string(const char * s)
+static char* copy_string(const char* s)
 {
-    char *newString = (char*)malloc(strlen(s) + 1);
+    char* newString = (char*)malloc(strlen(s) + 1);
     strcpy(newString, s);
     return newString;
 }
 
 char* defos_get_bundle_root()
 {
-    char* result;
-    char* path = (char*)malloc(PATH_MAX + 2);
+    char*   result;
+    char*   path = (char*)malloc(PATH_MAX + 2);
     ssize_t ret = readlink("/proc/self/exe", path, PATH_MAX + 2);
-    if (ret >= 0 && ret <= PATH_MAX + 1) {
+    if (ret >= 0 && ret <= PATH_MAX + 1)
+    {
         path[ret] = '\0';
         result = copy_string(dirname(path));
-    } else {
+    }
+    else
+    {
         const char* path2 = (const char*)getauxval(AT_EXECFN);
-        if (!path2) {
+        if (!path2)
+        {
             result = copy_string(".");
-        } else if (!realpath(path2, path)) {
+        }
+        else if (!realpath(path2, path))
+        {
             result = copy_string(".");
-        } else {
+        }
+        else
+        {
             result = copy_string(dirname(path));
         }
     }
@@ -886,19 +977,17 @@ char* defos_get_bundle_root()
     return result;
 }
 
-static int shared_argc = 0;
+static int    shared_argc = 0;
 static char** shared_argv = NULL;
-static void arguments_main_hook(int argc, char* argv[], char* envp[])
+static void   arguments_main_hook(int argc, char* argv[], char* envp[])
 {
     shared_argc = argc;
     shared_argv = argv;
 }
 
-__attribute__((section(".init_array"), used))
-void (* defos_arguments_main_hook)(int,char*[],char*[]) = &arguments_main_hook;
+__attribute__((section(".init_array"), used)) void (*defos_arguments_main_hook)(int, char*[], char*[]) = &arguments_main_hook;
 
-
-void defos_get_arguments(dmArray<char*> &arguments)
+void defos_get_arguments(dmArray<char*>& arguments)
 {
     arguments.OffsetCapacity(shared_argc);
     for (int i = 0; i < shared_argc; i++)
@@ -907,8 +996,8 @@ void defos_get_arguments(dmArray<char*> &arguments)
     }
 }
 
-//from glfw/x11_window.c
-static void send_message(Window &window, Atom type, long a, long b, long c, long d, long e)
+// from glfw/x11_window.c
+static void send_message(Window& window, Atom type, long a, long b, long c, long d, long e)
 {
     XEvent event;
     memset(&event, 0, sizeof(event));

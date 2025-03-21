@@ -13,7 +13,7 @@
 #include <stringapiset.h>
 
 // keep track of window placement when going to/from fullscreen or maximized
-static WINDOWPLACEMENT placement = {sizeof(placement)};
+static WINDOWPLACEMENT placement = { sizeof(placement) };
 
 // used to check if WM_MOUSELEAVE detected the mouse leaving the window
 static bool is_mouse_inside = false;
@@ -22,26 +22,27 @@ static bool is_mouse_inside = false;
 static WNDPROC originalProc = NULL;
 
 // original mouse clip rect
-static RECT originalRect;
-static bool is_cursor_clipped = false;
+static RECT  originalRect;
+static bool  is_cursor_clipped = false;
 static POINT lock_point;
-static bool is_cursor_locked = false;
+static bool  is_cursor_locked = false;
 
-static bool is_window_on_top = false;
-static bool is_window_active = true;
-static bool is_cursor_visible = true;
-static bool is_custom_cursor_loaded;
+static bool  is_window_on_top = false;
+static bool  is_window_active = true;
+static bool  is_cursor_visible = true;
+static bool  is_custom_cursor_loaded;
 
-struct CustomCursor {
+struct CustomCursor
+{
     HCURSOR cursor;
-    int ref_count;
+    int     ref_count;
 };
 
-static CustomCursor * current_cursor;
-static CustomCursor * default_cursors[DEFOS_CURSOR_INTMAX];
+static CustomCursor* current_cursor;
+static CustomCursor* default_cursors[DEFOS_CURSOR_INTMAX];
 
 // forward declarations
-bool set_window_style(LONG_PTR style);
+bool     set_window_style(LONG_PTR style);
 LONG_PTR get_window_style();
 LRESULT __stdcall custom_wndproc(HWND hwnd, UINT umsg, WPARAM wp, LPARAM lp);
 void restore_window_class();
@@ -59,7 +60,7 @@ void defos_init()
     is_cursor_clipped = false;
     current_cursor = NULL;
     memset(default_cursors, 0, DEFOS_CURSOR_INTMAX * sizeof(CustomCursor*));
-    GetClipCursor(&originalRect);  // keep the original clip for restore
+    GetClipCursor(&originalRect); // keep the original clip for restore
     GetWindowPlacement(dmGraphics::GetNativeWindowsHWND(), &placement);
     subclass_window();
 }
@@ -69,7 +70,8 @@ void defos_final()
     defos_set_cursor_clipped(false);
     restore_window_class();
     defos_gc_custom_cursor(current_cursor);
-    for (int i = 0; i < DEFOS_CURSOR_INTMAX; i++) {
+    for (int i = 0; i < DEFOS_CURSOR_INTMAX; i++)
+    {
         defos_gc_custom_cursor(default_cursors[i]);
     }
 }
@@ -82,6 +84,8 @@ bool defos_is_fullscreen()
 {
     return !(get_window_style() & WS_OVERLAPPEDWINDOW);
 }
+
+void defos_create_fullscreen_borderless() {}
 
 bool defos_is_borderless()
 {
@@ -138,17 +142,12 @@ void defos_toggle_fullscreen()
     HWND window = dmGraphics::GetNativeWindowsHWND();
     if (!defos_is_fullscreen())
     {
-        MONITORINFO mi = {sizeof(mi)};
+        MONITORINFO mi = { sizeof(mi) };
         if (GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY), &mi))
         {
             set_window_style(get_window_style() & ~WS_OVERLAPPEDWINDOW);
             GetWindowPlacement(window, &placement);
-            SetWindowPos(window, HWND_TOP,
-                         mi.rcMonitor.left,
-                         mi.rcMonitor.top,
-                         mi.rcMonitor.right - mi.rcMonitor.left,
-                         mi.rcMonitor.bottom - mi.rcMonitor.top,
-                         SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+            SetWindowPos(window, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top, SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
         }
     }
     else
@@ -203,12 +202,16 @@ void defos_toggle_always_on_top()
     is_window_on_top = !is_window_on_top;
     HWND window = dmGraphics::GetNativeWindowsHWND();
     SetWindowPos(window,
-        is_window_on_top ? HWND_TOPMOST : HWND_NOTOPMOST,
-        0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE
-    );
+                 is_window_on_top ? HWND_TOPMOST : HWND_NOTOPMOST,
+                 0,
+                 0,
+                 0,
+                 0,
+                 SWP_NOMOVE | SWP_NOSIZE);
 }
 
-bool defos_is_always_on_top() {
+bool defos_is_always_on_top()
+{
     return is_window_on_top;
 }
 
@@ -240,12 +243,18 @@ void defos_set_window_size(float x, float y, float w, float h)
 
     if (isnan(x) || isnan(y))
     {
-        HMONITOR hMonitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+        HMONITOR    hMonitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
         MONITORINFO monitorInfo;
         monitorInfo.cbSize = sizeof(monitorInfo);
         GetMonitorInfo(hMonitor, &monitorInfo);
-        if (isnan(x)) { x = (monitorInfo.rcMonitor.left + monitorInfo.rcMonitor.right - w) / 2; }
-        if (isnan(y)) { y = (monitorInfo.rcMonitor.top + monitorInfo.rcMonitor.bottom - h) / 2; }
+        if (isnan(x))
+        {
+            x = (monitorInfo.rcMonitor.left + monitorInfo.rcMonitor.right - w) / 2;
+        }
+        if (isnan(y))
+        {
+            y = (monitorInfo.rcMonitor.top + monitorInfo.rcMonitor.bottom - h) / 2;
+        }
     }
 
     SetWindowPos(window, window, (int)x, (int)y, (int)w, (int)h, SWP_NOZORDER);
@@ -257,15 +266,21 @@ void defos_set_view_size(float x, float y, float w, float h)
 
     if (isnan(x) || isnan(y))
     {
-        HMONITOR hMonitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+        HMONITOR    hMonitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
         MONITORINFO monitorInfo;
         monitorInfo.cbSize = sizeof(monitorInfo);
         GetMonitorInfo(hMonitor, &monitorInfo);
-        if (isnan(x)) { x = (monitorInfo.rcMonitor.left + monitorInfo.rcMonitor.right - w) / 2; }
-        if (isnan(y)) { y = (monitorInfo.rcMonitor.top + monitorInfo.rcMonitor.bottom - h) / 2; }
+        if (isnan(x))
+        {
+            x = (monitorInfo.rcMonitor.left + monitorInfo.rcMonitor.right - w) / 2;
+        }
+        if (isnan(y))
+        {
+            y = (monitorInfo.rcMonitor.top + monitorInfo.rcMonitor.bottom - h) / 2;
+        }
     }
 
-    RECT rect = {0, 0, (int)w, (int)h};
+    RECT  rect = { 0, 0, (int)w, (int)h };
 
     DWORD style = (DWORD)get_window_style();
 
@@ -275,10 +290,10 @@ void defos_set_view_size(float x, float y, float w, float h)
     SetWindowPos(window, window, (int)x, (int)y, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER);
 }
 
-void defos_set_window_title(const char *title_lua)
+void defos_set_window_title(const char* title_lua)
 {
     wchar_t unicode_title[MAX_WINDOW_TITLE_LENGTH];
-    int res = MultiByteToWideChar(CP_UTF8, 0, title_lua, -1, unicode_title, MAX_WINDOW_TITLE_LENGTH);
+    int     res = MultiByteToWideChar(CP_UTF8, 0, title_lua, -1, unicode_title, MAX_WINDOW_TITLE_LENGTH);
     if (res <= 0)
     {
         unicode_title[0] = 0;
@@ -286,7 +301,7 @@ void defos_set_window_title(const char *title_lua)
     SetWindowTextW(dmGraphics::GetNativeWindowsHWND(), unicode_title);
 }
 
-void defos_set_window_icon(const char *icon_path)
+void defos_set_window_icon(const char* icon_path)
 {
     HANDLE icon = LoadImage(NULL, icon_path, IMAGE_ICON, 32, 32, LR_LOADFROMFILE);
     if (icon)
@@ -296,36 +311,45 @@ void defos_set_window_icon(const char *icon_path)
     }
 }
 
-char* defos_get_bundle_root() {
-    char *bundlePath = (char*)malloc(MAX_PATH);
+char* defos_get_bundle_root()
+{
+    char*  bundlePath = (char*)malloc(MAX_PATH);
     size_t ret = GetModuleFileNameA(GetModuleHandle(NULL), bundlePath, MAX_PATH);
-    if (ret > 0 && ret < MAX_PATH) {
+    if (ret > 0 && ret < MAX_PATH)
+    {
         // Remove the last path component
         size_t i = strlen(bundlePath);
-        do {
+        do
+        {
             i -= 1;
-            if (bundlePath[i] == '\\') {
+            if (bundlePath[i] == '\\')
+            {
                 bundlePath[i] = 0;
                 break;
             }
         } while (i);
-    } else {
+    }
+    else
+    {
         bundlePath[0] = 0;
     }
     return bundlePath;
 }
 
-void defos_get_arguments(dmArray<char*> &arguments) {
-    LPWSTR *szArglist;
-    int nArgs;
-    int i;
+void defos_get_arguments(dmArray<char*>& arguments)
+{
+    LPWSTR* szArglist;
+    int     nArgs;
+    int     i;
     szArglist = CommandLineToArgvW(GetCommandLineW(), &nArgs);
-    if( NULL != szArglist ){
+    if (NULL != szArglist)
+    {
         arguments.OffsetCapacity(nArgs);
-        for( i=0; i<nArgs; i++) {
-            const wchar_t *param = szArglist[i];
-            int len = wcslen(param) + 1;
-            char* lua_param = (char*)malloc(len);
+        for (i = 0; i < nArgs; i++)
+        {
+            const wchar_t* param = szArglist[i];
+            int            len = wcslen(param) + 1;
+            char*          lua_param = (char*)malloc(len);
             wcstombs(lua_param, param, len);
             arguments.Push(lua_param);
         }
@@ -354,7 +378,7 @@ WinRect defos_get_view_size()
     RECT wrect;
     GetClientRect(window, &wrect);
 
-    POINT pos = {wrect.left, wrect.top};
+    POINT pos = { wrect.left, wrect.top };
     ClientToScreen(window, &pos);
 
     WinRect rect = {
@@ -401,9 +425,9 @@ void defos_set_cursor_pos_view(float x, float y)
     RECT wrect;
     GetClientRect(window, &wrect);
 
-    int tox = wrect.left + (int)x;
-    int toy = wrect.top + (int)y;
-    POINT pos = {tox, toy};
+    int   tox = wrect.left + (int)x;
+    int   toy = wrect.top + (int)y;
+    POINT pos = { tox, toy };
 
     ClientToScreen(window, &pos);
     SetCursorPos(pos.x, pos.y);
@@ -419,8 +443,8 @@ void defos_set_cursor_clipped(bool clipped)
         RECT wrect;
         GetClientRect(window, &wrect);
 
-        POINT left_top = {wrect.left, wrect.top};
-        POINT right_bottom = {wrect.right, wrect.bottom};
+        POINT left_top = { wrect.left, wrect.top };
+        POINT right_bottom = { wrect.right, wrect.bottom };
 
         ClientToScreen(window, &left_top);
         ClientToScreen(window, &right_bottom);
@@ -457,33 +481,39 @@ bool defos_is_cursor_locked()
     return is_cursor_locked;
 }
 
-void defos_update() {
-    if (is_cursor_locked && is_window_active) {
+void defos_update()
+{
+    if (is_cursor_locked && is_window_active)
+    {
         SetCursorPos(lock_point.x, lock_point.y);
     }
 }
 
-void * defos_load_cursor_win(const char *filename)
+void* defos_load_cursor_win(const char* filename)
 {
-    CustomCursor * cursor = new CustomCursor();
+    CustomCursor* cursor = new CustomCursor();
     cursor->cursor = LoadCursorFromFile(_T(filename));
     cursor->ref_count = 1;
     return cursor;
 }
 
-void defos_gc_custom_cursor(void * _cursor)
+void defos_gc_custom_cursor(void* _cursor)
 {
-    CustomCursor * cursor = (CustomCursor*)_cursor;
-    if (!cursor) { return; }
+    CustomCursor* cursor = (CustomCursor*)_cursor;
+    if (!cursor)
+    {
+        return;
+    }
     cursor->ref_count -= 1;
-    if (!cursor->ref_count) {
+    if (!cursor->ref_count)
+    {
         delete cursor;
     }
 }
 
-void defos_set_custom_cursor(void * _cursor)
+void defos_set_custom_cursor(void* _cursor)
 {
-    CustomCursor * cursor = (CustomCursor*)_cursor;
+    CustomCursor* cursor = (CustomCursor*)_cursor;
     cursor->ref_count += 1;
     defos_gc_custom_cursor(current_cursor);
     current_cursor = cursor;
@@ -492,10 +522,11 @@ void defos_set_custom_cursor(void * _cursor)
 
 static LPCTSTR get_cursor(DefosCursor cursor);
 
-void defos_set_cursor(DefosCursor cursor_type)
+void           defos_set_cursor(DefosCursor cursor_type)
 {
-    CustomCursor * cursor = default_cursors[cursor_type];
-    if (!cursor) {
+    CustomCursor* cursor = default_cursors[cursor_type];
+    if (!cursor)
+    {
         cursor = new CustomCursor();
         cursor->cursor = LoadCursor(NULL, get_cursor(cursor_type));
         cursor->ref_count = 1;
@@ -510,9 +541,9 @@ void defos_reset_cursor()
     current_cursor = NULL;
 }
 
-static char* copy_string(const char *s)
+static char* copy_string(const char* s)
 {
-    char *buffer = (char*)malloc(strlen(s) + 1);
+    char* buffer = (char*)malloc(strlen(s) + 1);
     strcpy(buffer, s);
     return buffer;
 }
@@ -521,24 +552,27 @@ static unsigned long translate_orientation(DWORD orientation)
 {
     switch (orientation)
     {
-        case DMDO_DEFAULT: return 0;
-        case DMDO_90: return 90;
-        case DMDO_180: return 180;
-        case DMDO_270: return 270;
-        default: return 0;
+        case DMDO_DEFAULT:
+            return 0;
+        case DMDO_90:
+            return 90;
+        case DMDO_180:
+            return 180;
+        case DMDO_270:
+            return 270;
+        default:
+            return 0;
     }
 }
 
-static void parse_display_mode(const DEVMODE &devMode, DisplayModeInfo &mode)
+static void parse_display_mode(const DEVMODE& devMode, DisplayModeInfo& mode)
 {
     mode.width = devMode.dmPelsWidth;
     mode.height = devMode.dmPelsHeight;
     mode.bits_per_pixel = devMode.dmBitsPerPel;
     mode.refresh_rate = devMode.dmDisplayFrequency;
     mode.scaling_factor = 1.0;
-    mode.orientation = (devMode.dmFields & DM_DISPLAYORIENTATION)
-        ? translate_orientation(devMode.dmDisplayOrientation)
-        : 0;
+    mode.orientation = (devMode.dmFields & DM_DISPLAYORIENTATION) ? translate_orientation(devMode.dmDisplayOrientation) : 0;
     mode.reflect_x = false;
     mode.reflect_y = false;
 }
@@ -547,7 +581,10 @@ static BOOL CALLBACK monitor_enum_callback(HMONITOR hMonitor, HDC, LPRECT, LPARA
 {
     MONITORINFOEX monitorInfo;
     monitorInfo.cbSize = sizeof(monitorInfo);
-    if (!GetMonitorInfo(hMonitor, &monitorInfo)) { return TRUE; }
+    if (!GetMonitorInfo(hMonitor, &monitorInfo))
+    {
+        return TRUE;
+    }
 
     DisplayInfo display;
     display.id = copy_string(monitorInfo.szDevice);
@@ -567,32 +604,39 @@ static BOOL CALLBACK monitor_enum_callback(HMONITOR hMonitor, HDC, LPRECT, LPARA
     EnumDisplayDevices(monitorInfo.szDevice, 0, &displayDevice, 0);
     display.name = copy_string(displayDevice.DeviceString);
 
-    dmArray<DisplayInfo> *displayList = reinterpret_cast<dmArray<DisplayInfo>*>(dwData);
+    dmArray<DisplayInfo>* displayList = reinterpret_cast<dmArray<DisplayInfo>*>(dwData);
     displayList->OffsetCapacity(1);
     displayList->Push(display);
 
     return TRUE;
 }
 
-void defos_get_displays(dmArray<DisplayInfo> &displayList)
+void defos_get_displays(dmArray<DisplayInfo>& displayList)
 {
     EnumDisplayMonitors(NULL, NULL, monitor_enum_callback, reinterpret_cast<LPARAM>(&displayList));
 }
 
-struct MonitorScaleData {
-    const char *display_device_name;
-    double scaling_factor;
+struct MonitorScaleData
+{
+    const char* display_device_name;
+    double      scaling_factor;
 };
 
 static BOOL CALLBACK monitor_scale_enum_callback(HMONITOR hMonitor, HDC, LPRECT, LPARAM dwData)
 {
-    MonitorScaleData *data = reinterpret_cast<MonitorScaleData*>(dwData);
+    MonitorScaleData* data = reinterpret_cast<MonitorScaleData*>(dwData);
 
-    MONITORINFOEX monitorInfo;
+    MONITORINFOEX     monitorInfo;
     monitorInfo.cbSize = sizeof(monitorInfo);
-    if (!GetMonitorInfo(hMonitor, &monitorInfo)) { return TRUE; }
+    if (!GetMonitorInfo(hMonitor, &monitorInfo))
+    {
+        return TRUE;
+    }
 
-    if (strcmp(monitorInfo.szDevice, data->display_device_name) != 0) { return TRUE; }
+    if (strcmp(monitorInfo.szDevice, data->display_device_name) != 0)
+    {
+        return TRUE;
+    }
 
     DEVMODE devMode;
     devMode.dmSize = sizeof(devMode);
@@ -612,7 +656,7 @@ static double scale_of_monitor(DisplayID displayID)
     return data.scaling_factor;
 }
 
-void defos_get_display_modes(DisplayID displayID, dmArray<DisplayModeInfo> &modeList)
+void defos_get_display_modes(DisplayID displayID, dmArray<DisplayModeInfo>& modeList)
 {
     DEVMODE devMode = {};
     devMode.dmSize = sizeof(devMode);
@@ -628,18 +672,18 @@ void defos_get_display_modes(DisplayID displayID, dmArray<DisplayModeInfo> &mode
         bool isDuplicate = false;
         for (int j = (int)modeList.Size() - 1; j >= 0; j--)
         {
-            DisplayModeInfo &otherMode = modeList[j];
-            if (mode.width == otherMode.width
-                && mode.height == otherMode.height
-                && mode.bits_per_pixel == otherMode.bits_per_pixel
-                && mode.refresh_rate == otherMode.refresh_rate
-            ) {
+            DisplayModeInfo& otherMode = modeList[j];
+            if (mode.width == otherMode.width && mode.height == otherMode.height && mode.bits_per_pixel == otherMode.bits_per_pixel && mode.refresh_rate == otherMode.refresh_rate)
+            {
                 isDuplicate = true;
                 break;
             }
         }
 
-        if (isDuplicate) { continue; }
+        if (isDuplicate)
+        {
+            continue;
+        }
         modeList.OffsetCapacity(1);
         modeList.Push(mode);
     }
@@ -647,8 +691,8 @@ void defos_get_display_modes(DisplayID displayID, dmArray<DisplayModeInfo> &mode
 
 DisplayID defos_get_current_display()
 {
-    HWND window = dmGraphics::GetNativeWindowsHWND();
-    HMONITOR hMonitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+    HWND          window = dmGraphics::GetNativeWindowsHWND();
+    HMONITOR      hMonitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
     MONITORINFOEX monitorInfo;
     monitorInfo.cbSize = sizeof(monitorInfo);
     GetMonitorInfo(hMonitor, &monitorInfo);
@@ -659,8 +703,10 @@ DisplayID defos_get_current_display()
  * internal functions
  ********************/
 
-static LPCTSTR get_cursor(DefosCursor cursor) {
-    switch (cursor) {
+static LPCTSTR get_cursor(DefosCursor cursor)
+{
+    switch (cursor)
+    {
         case DEFOS_CURSOR_ARROW:
             return IDC_ARROW;
         case DEFOS_CURSOR_HAND:
@@ -720,44 +766,52 @@ static LRESULT __stdcall custom_wndproc(HWND hwnd, UINT umsg, WPARAM wp, LPARAM 
 
     switch (umsg)
     {
-    case WM_MOUSEMOVE:
-        if (!is_mouse_inside)
-        {
-            is_mouse_inside = true;
-            defos_emit_event(DEFOS_EVENT_MOUSE_ENTER);
+        case WM_MOUSEMOVE:
+            if (!is_mouse_inside)
+            {
+                is_mouse_inside = true;
+                defos_emit_event(DEFOS_EVENT_MOUSE_ENTER);
 
-            TRACKMOUSEEVENT tme = {sizeof(tme)};
-            tme.dwFlags = TME_LEAVE;
-            tme.hwndTrack = hwnd;
-            TrackMouseEvent(&tme);
-        }
-        break;
+                TRACKMOUSEEVENT tme = { sizeof(tme) };
+                tme.dwFlags = TME_LEAVE;
+                tme.hwndTrack = hwnd;
+                TrackMouseEvent(&tme);
+            }
+            break;
 
-    case WM_MOUSELEAVE:
-        is_mouse_inside = false;
-        defos_emit_event(DEFOS_EVENT_MOUSE_LEAVE);
-        break;
+        case WM_MOUSELEAVE:
+            is_mouse_inside = false;
+            defos_emit_event(DEFOS_EVENT_MOUSE_LEAVE);
+            break;
 
-    case WM_SETCURSOR:
-        if (current_cursor)
-        {
-            SetCursor(current_cursor->cursor);
-            return TRUE;
-        }
-        break;
+        case WM_SETCURSOR:
+            if (current_cursor)
+            {
+                SetCursor(current_cursor->cursor);
+                return TRUE;
+            }
+            break;
 
-    case WM_WINDOWPOSCHANGED:
-        if (is_cursor_clipped) { defos_set_cursor_clipped(true); }
-        break;
+        case WM_WINDOWPOSCHANGED:
+            if (is_cursor_clipped)
+            {
+                defos_set_cursor_clipped(true);
+            }
+            break;
 
-    case WM_ACTIVATE:
-        if (wp != WA_INACTIVE)
-        {
-            is_window_active = true;
-            if (is_cursor_clipped) { defos_set_cursor_clipped(true); }
-        } else {
-            is_window_active = false;
-        }
+        case WM_ACTIVATE:
+            if (wp != WA_INACTIVE)
+            {
+                is_window_active = true;
+                if (is_cursor_clipped)
+                {
+                    defos_set_cursor_clipped(true);
+                }
+            }
+            else
+            {
+                is_window_active = false;
+            }
     }
 
     if (originalProc != NULL)
